@@ -272,6 +272,7 @@ void updateMenu(){
 		prev==posCount;
 	}
 }	
+
 char checkButtonPress(){
 	char button;
 	if (KEYPAD_GetKey()==65){
@@ -295,6 +296,7 @@ char checkButtonPress(){
 	
 	return button;
 }
+
 void RGBupdate(char t){  //not completed have to done more
 	LCD_Clear();
 	LCD_DisplayString("R   G   B");
@@ -306,8 +308,19 @@ void RGBupdate(char t){  //not completed have to done more
 	
 	}
 }
+
+int calibRGB[6]={-1,-1,-1,-1,-1,-1}; //{white_R,white_G,white_B,Black_R,Black_G,Black_B} *Boundries for the measurements
+int senRGB[3]={0,0,0};
 void sensce(){//not complete
 	unsigned char run=1;
+	LCD_Clear();
+	LCD_DisplayString("Hold the Color");
+	_delay_ms(1000);
+	LCD_GoToXY(2,0);
+	LCD_DisplayString("Sensing start now");
+	_delay_ms(500);
+	LCD_Clear();
+	LCD_DisplayString("Hold the Color");
 	for (int i=0;i<3;i++){
 		I2C_Start();            // Start I2C communication
 		I2C_Write(0x40);   // Connect to DS1307 by sending its ID on I2c Bus
@@ -315,7 +328,13 @@ void sensce(){//not complete
 		I2C_Write(run);        // Write 0x00 to Control register to disable SQW-Out
 		I2C_Stop();
 	
-		_delay_ms(3000);
+		_delay_ms(500);
+		int tot=0;
+		for (char j=0; j<50;j++){
+			tot+=adc_read(0);
+			_delay_ms(25);
+		}
+		senRGB[i]=255*tot/((calibRGB[i+3]-calibRGB[i])*50);
 		
 		I2C_Start();            // Start I2C communication
 		I2C_Write(0x40);   // Connect to DS1307 by sending its ID on I2c Bus
@@ -328,7 +347,8 @@ void sensce(){//not complete
 	}
 	
 }
-void RGBcalib(){//not completee yet
+
+void RGBcalib(){
 	char calibmenu[2][16]={"Hold White","Hold Black"};
 	for (char j=0;j<2;j++){
 		unsigned char run=1;
@@ -341,7 +361,19 @@ void RGBcalib(){//not completee yet
 			I2C_Write(run);        // Write 0x00 to Control register to disable SQW-Out
 			I2C_Stop();
 			
-			_delay_ms(3000);
+			_delay_ms(500);
+			int tot=0;
+			for (char b=0;b<50;b++){
+				tot+=adc_read(0);
+				_delay_ms(25);
+			}
+			calibRGB[j*3+i]=tot/50;
+			/*char num_char[7];
+			itoa(calibRGB[j*3+i], num_char, 10);
+			
+			LCD_DisplayString(num_char);
+			_delay_ms(1000);*/
+			
 			
 			I2C_Start();            // Start I2C communication
 			I2C_Write(0x40);   // Connect to DS1307 by sending its ID on I2c Bus
@@ -357,8 +389,8 @@ int main(void)
 {
 	LCD_Init();
 	KEYPAD_Init();
-	/*adc_init();
-	char aa=1;
+	adc_init();
+	/*char aa=0;
 	int a=adc_read(aa);
 	char num_char[7];
 	itoa(a, num_char, 10);
@@ -413,11 +445,17 @@ int main(void)
 					_delay_ms(1000);
 					updateMenu();//not complete
 				}
-				else if (posCount==1){
+				else if (posCount==1){// Calibration MODE
 					LCD_Clear();
-					LCD_DisplayString("sensing code");
-					sensce();
-					_delay_ms(1000);
+					if (calibRGB[0]!=-1){
+						sensce();
+						_delay_ms(250);
+					}
+					else{
+						LCD_DisplayString("Calibrate First");
+						_delay_ms(500);
+						posCount=0; //Might give an error "HERE"
+					}
 					updateMenu();
 				}
 				else if (posCount==2){
@@ -467,4 +505,3 @@ int main(void)
 		_delay_ms(1000);*/
     }
 }
-
