@@ -10,6 +10,7 @@
 #include <avr/io.h>
 #include <util\delay.h>
 #include <stdlib.h>
+#include <math.h>
 
 #define databus_direction DDRB
 #define control_bus PORTB
@@ -97,24 +98,24 @@ char KEYPAD_GetKey()
 	char k;
 	switch(key)                       // Decode the key
 	{
-		case 0x7e: k='7'; break;
-		case 0x7d: k='8'; break;
-		case 0x7b: k='9'; break;
+		case 0x7e: k=7; break;
+		case 0x7d: k=8; break;
+		case 0x7b: k=9; break;
 		case 0x77: k='A'; break;
-		case 0xbe: k='4'; break;
-		case 0xbd: k='5'; break;
-		case 0xbb: k='6'; break;
+		case 0xbe: k=4; break;
+		case 0xbd: k=5; break;
+		case 0xbb: k=6; break;
 		case 0xb7: k='B'; break;
-		case 0xde: k='1'; break;
-		case 0xdd: k='2'; break;
-		case 0xdb: k='3'; break;
+		case 0xde: k=1; break;
+		case 0xdd: k=2; break;
+		case 0xdb: k=3; break;
 		case 0xd7: k='C'; break;
-		case 0xee: k='0'; break;
+		case 0xee: k=0; break;
 		case 0xed: k='F'; break;
 		case 0xeb: k='E'; break;
 		case 0xe7: k='D'; break;
 		
-		default: k='z';
+		default: k='H';
 	}
 	return(k);                      // Return the key
 }
@@ -255,6 +256,9 @@ char menusize=4;
 char posCount=0;
 char prev=-1;
 char p=20;
+int calibRGB[6]={-1,-1,-1,-1,-1,-1}; //{white_R,white_G,white_B,Black_R,Black_G,Black_B} *Boundries for the measurements
+int senRGB[3]={0,0,0};
+int RGBval[3]={0,0,0};
 void updateMenu(){
 	if (posCount>=menusize){posCount=posCount%(menusize);}
 	if (prev!=posCount){
@@ -297,20 +301,72 @@ char checkButtonPress(){
 	return button;
 }
 
+bool checklist(char cc){
+	
+	for (char i=0;i<10;i++){
+		if (cc=i){
+			return 1;
+		}
+	
+	}	
+	return 0;
+		
+}
 void RGBupdate(char t){  //not completed have to done more
 	LCD_Clear();
 	LCD_DisplayString("R   G   B");
 	for (char i=0;i<3;i++){ //not completed interface part only
+		LCD_GoToXY(1,i*4);
+		char num_char[7];
+		itoa(RGBval[i], num_char, 10);
+		LCD_DisplayString(num_char);
 		if (t==i+menusize){
-			char c=i*4;
-			LCD_GoToXY(2,c);LCD_DisplayString("___");
+			LCD_GoToXY(2,i*4);LCD_DisplayString("___");
 		}
-	
 	}
 }
+void RGBupdate_mech(char t){
+	RGBupdate(t);
+	RGBval[t-4]=0;
+	char turns=3;
+	int total=0;
+	while (turns>0){
+		char c=KEYPAD_GetKey();
+		if (c!='A'& c!='B' & c!='C' & c!='D' & c!='E'& c!='F' & c!='H'){
+			if (turns==3 && c!=0){
+			total=c*pow(10,turns-1)+total+1;}
+			else if( turns==2 || turns==1 || (turns==3 && c==0)){total=c*pow(10,turns-1)+total;}
+			
+			
+			if (total<256){
+			RGBval[t-4]=total;
+			turns=turns-1;
+			}
+			else{
+				total=RGBval[t-4];
+				LCD_Clear();
+				LCD_DisplayString("Include Values");
+				LCD_GoToXY(1,0);
+				LCD_DisplayString("Less than 255");
+				_delay_ms(500);
+				
+			}
+			RGBupdate(t);
+		
+		}
+		else if (c=='A'){
+			turns=0;}
+		else if (c=='E'){
+			posCount=2;
+			updateMenu();
+		}	
+		
+		
+	}
+	
+}
 
-int calibRGB[6]={-1,-1,-1,-1,-1,-1}; //{white_R,white_G,white_B,Black_R,Black_G,Black_B} *Boundries for the measurements
-int senRGB[3]={0,0,0};
+
 void sensce(){//not complete
 	unsigned char run=1;
 	LCD_Clear();
@@ -418,7 +474,7 @@ int main(void)
     while (1) 
     {
 		switch (checkButtonPress()){
-			case 1:
+			case 1://Selection
 				posCount=posCount+1;
 				if (posCount<menusize){
 					updateMenu();
@@ -439,13 +495,13 @@ int main(void)
 					break;
 				}
 			case 2://0k
-				if (posCount==0){
+				if (posCount==0){//Caliberation Mode
 					LCD_Clear();
 					RGBcalib();
 					_delay_ms(1000);
 					updateMenu();//not complete
 				}
-				else if (posCount==1){// Calibration MODE
+				else if (posCount==1){// Sensor Mode
 					LCD_Clear();
 					if (calibRGB[0]!=-1){
 						sensce();
@@ -458,17 +514,25 @@ int main(void)
 					}
 					updateMenu();
 				}
-				else if (posCount==2){
+				else if (posCount==2){//RGB mode selection
 					p=posCount;
 					posCount=menusize;
 					RGBupdate(posCount);
+				}
+				else if (posCount>=4){//Shifting inside RGB Mode
+					LCD_GoToXY(3,10);
+					LCD_DisplayString("**");
+					_delay_ms(250);
+					RGBupdate_mech(posCount);
+					
+					
 				}
 			case 3:
 			   continue;
 			case 4:
 			   continue;   	
 			case 5://back
-				if (posCount>menusize){
+				if (posCount>=menusize){
 					posCount=p;
 					p=20;
 					updateMenu();
