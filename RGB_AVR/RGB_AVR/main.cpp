@@ -13,11 +13,12 @@
 #include <math.h>
 
 #define databus_direction DDRB
-#define control_bus PORTB
+#define controlbus_direction DDRC
+#define control_bus PORTC
 #define databus PORTB
 using namespace std;
 
-#define rs 0
+#define rs 1
 //#define rw 1
 #define en 2
 
@@ -186,7 +187,8 @@ void LCD_DataWrite( char dat)
 void LCD_Init()
 {
 	_delay_ms(50);
-	databus_direction = 0xf5;  // Configure both databus and controlbus as output
+	databus_direction = 0xf0;  // Configure  databus as output
+	controlbus_direction=0x06; // Configure  controlbus as output
 	LCD_CmdWrite(0x02);	       //Initilize the LCD in 4bit Mode
 	LCD_CmdWrite(0x28);
 	LCD_CmdWrite(0x0E);	      // Display ON cursor ON
