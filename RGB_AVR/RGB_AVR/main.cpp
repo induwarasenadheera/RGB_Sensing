@@ -11,6 +11,7 @@
 #include <util\delay.h>
 #include <stdlib.h>
 #include <math.h>
+#include <avr/interrupt.h>
 
 #define databus_direction DDRB
 #define controlbus_direction DDRC
@@ -106,7 +107,7 @@ char KEYPAD_GetKey()
 		case 0xbe: k=4; break;
 		case 0xbd: k=5; break;
 		case 0xbb: k=6; break;
-		case 0xb7: k='B'; break;
+		case 0xb7: k='B'; break; 
 		case 0xde: k=1; break;
 		case 0xdd: k=2; break;
 		case 0xdb: k=3; break;
@@ -191,7 +192,7 @@ void LCD_Init()
 	controlbus_direction=0x06; // Configure  controlbus as output
 	LCD_CmdWrite(0x02);	       //Initilize the LCD in 4bit Mode
 	LCD_CmdWrite(0x28);
-	LCD_CmdWrite(0x0E);	      // Display ON cursor ON
+	LCD_CmdWrite(0x0C);	      // Display ON cursor off
 	LCD_CmdWrite(0x01);	      // Clear the LCD
 	LCD_CmdWrite(0x80);	      // Move the Cursor to First line First Position
 	
@@ -220,7 +221,7 @@ void LCD_GoToXY(char row, char col)
 	LCD_CmdWrite(((col) & 0x0F)| 0x90);
 	else if (row == 3 && col<16)
 	LCD_CmdWrite(((col) & 0x0F)|0xD0);
-	LCD_CmdWrite(0x0E); //enable cursor
+	LCD_CmdWrite(0x0C); //enable cursor cursor off
 }
 
 uint16_t adc_read(uint8_t ch)
@@ -261,6 +262,54 @@ char p=20;
 int calibRGB[6]={-1,-1,-1,-1,-1,-1}; //{white_R,white_G,white_B,Black_R,Black_G,Black_B} *Boundries for the measurements
 int senRGB[3]={0,0,0};
 int RGBval[3]={0,0,0};
+	
+int BLUE=255;
+int GREEN=0;
+int RED=0;
+
+void RGB_init()
+{
+	DDRB|=0X0e;
+	TCCR2A=(1<<COM2A1)| (1<<WGM20) | (1<<WGM21);
+	TIMSK2=(1<<TOIE2);
+	OCR2A=BLUE;
+	sei();
+	TCCR2B=(1<<CS22)|(1<<CS21)|(1<<CS20);
+	
+	
+	TCCR1A=(1<<COM1B1)| (1<<WGM12) | (1<<WGM10)|(1<<COM1A1);
+	TIMSK1=(1<<TOIE1);
+	OCR1A=RED;
+	OCR1B=GREEN;
+	sei();
+	TCCR1B=(1<<CS10)|(1<<CS12);
+	
+}
+ISR(TIMER2_OVF_vect){
+	OCR2A=BLUE;
+}
+ISR(TIMER1_OVF_vect){
+	OCR1B=GREEN;
+	OCR1A=RED;
+}
+void RGBSENCEE_LIGHT(){
+	RED=senRGB[0];
+	GREEN=senRGB[1];
+	BLUE=senRGB[2];
+	RGB_init();
+}
+void RGBUPDATE_LIGHT(){
+	RED=RGBval[0];
+	GREEN=RGBval[1];
+	BLUE=RGBval[2];
+	RGB_init();
+}
+void RGBUPDATE_off(){
+	RED=0;
+	GREEN=0;
+	BLUE=0;
+	RGB_init();
+}	
 void updateMenu(){
 	if (posCount>=menusize){posCount=posCount%(menusize);}
 	if (prev!=posCount){
@@ -342,6 +391,7 @@ void RGBupdate_mech(char t){
 			
 			if (total<256){
 			RGBval[t-4]=total;
+			RGBUPDATE_LIGHT();
 			turns=turns-1;
 			}
 			else{
@@ -359,8 +409,12 @@ void RGBupdate_mech(char t){
 		else if (c=='A'){
 			turns=0;}
 		else if (c=='E'){
+			LCD_GoToXY(3,10);
+			LCD_DisplayString("**");
+			_delay_ms(250);
 			posCount=2;
 			updateMenu();
+			RGBUPDATE_off();
 		}	
 		
 		
@@ -400,10 +454,11 @@ void sensce(){//not complete
 		I2C_Write(0x00);        // Write 0x00 to Control register to disable SQW-Out
 		I2C_Stop();
 		
-		
+		RGBSENCEE_LIGHT();
 		run=run<<1;
 	}
-	
+	_delay_ms(2000);
+	RGBUPDATE_off();
 }
 
 void RGBcalib(){
@@ -534,7 +589,15 @@ int main(void)
 			case 4:
 			   continue;   	
 			case 5://back
+				RGBUPDATE_off();
 				if (posCount>=menusize){
+					
+					RGBUPDATE_off();
+					char num_char[7];
+					itoa(RED, num_char, 10);
+					
+					LCD_DisplayString(num_char);
+					_delay_ms(1000);
 					posCount=p;
 					p=20;
 					updateMenu();
