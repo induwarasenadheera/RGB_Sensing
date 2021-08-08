@@ -259,6 +259,7 @@ char menusize=4;
 char posCount=0;
 char prev=-1;
 char p=20;
+
 int calibRGB[6]={-1,-1,-1,-1,-1,-1}; //{white_R,white_G,white_B,Black_R,Black_G,Black_B} *Boundries for the measurements
 int senRGB[3]={0,0,0};
 int RGBval[3]={0,0,0};
