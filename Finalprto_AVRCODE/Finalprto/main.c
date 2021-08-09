@@ -219,10 +219,10 @@ char posCount=0;						//Calculate the Current Position
 char prev=-1;
 char p=20;
 
-int calibRGB[6]={-1,-1,-1,-1,-1,-1};	//{white_R,white_G,white_B,Black_R,Black_G,Black_B} *Boundries for the measurements
-int senRGB[3]={-1,-1,-1};				//{SenceMODE RED Val,SenceMODE GREEN Val,SenceMODE BLUE Val}
+float calibRGB[6]={-1,-1,-1,-1,-1,-1};	//{white_R,white_G,white_B,Black_R,Black_G,Black_B} *Boundries for the measurements
+float senRGB[3]={-1,-1,-1};				//{SenceMODE RED Val,SenceMODE GREEN Val,SenceMODE BLUE Val}
 int RGBval[3]={0,0,0};					//{Input RGB MODE RED Val,Input RGB MODE GREEN Val,Input RGB MODE BLUE Val}
-int adcRGB[3]={100,10,255};				//RGB VALUE GIVEN TO THE SENSOR
+int adcRGB[3]={0,0,255};				//RGB VALUE GIVEN TO THE SENSOR
 int regSen[3]={0,0,0};					//RGB VALUES TAKEN FROM  REGRESSION
 
 void RGB_init()
@@ -253,9 +253,30 @@ ISR(TIMER1_OVF_vect){
 
 void RGBSENCEE_LIGHT(){
 	//ASSIGN VALUES FROM SENCE MODE TO POWER THE RGB
-	adcRGB[0]=senRGB[0];
-	adcRGB[1]=senRGB[1];
-	adcRGB[2]=senRGB[2];
+
+	//Method 1 of adding weight
+	int R = senRGB[0] + (senRGB[0]-senRGB[1])/4 + (senRGB[0]-senRGB[2])/4;
+	int G = senRGB[1] + (senRGB[1]-senRGB[0])/3 + (senRGB[1]-senRGB[2])/3;
+	int B = senRGB[2] + (senRGB[2]-senRGB[0])/1.2 + (senRGB[2]-senRGB[1])/1.2;
+	
+	//Method 2 of adding weight
+	/*float m = (senRGB[0]+senRGB[1]+senRGB[2])/3;
+	int R = senRGB[0] + 15*((senRGB[0]-m)/m);
+	int G = senRGB[1] + 20*((senRGB[1]-m)/m);
+	int B = senRGB[2] + 25*((senRGB[2]-m)/m);*/
+	
+	adcRGB[0]=R;
+	adcRGB[1]=G;
+	adcRGB[2]=B;
+	
+	for (int i=0;i<3;i++){
+		if (adcRGB[i]<0){
+			adcRGB[i]=0;
+		}
+		else if(adcRGB[i]>255){
+			adcRGB[i]=255;
+		}
+	}
 	RGB_init();
 }
 void RGBUPDATE_LIGHT(){
@@ -398,7 +419,7 @@ void RGBcalib(){
 			itoa(tot/50, num_char, 10);
 			LCD_GoToXY(3,0);
 			LCD_DisplayString(num_char);
-			_delay_ms(1000);
+			_delay_ms(500);
 			control_bus&=~(run);
 			run=run<<1;
 		}
@@ -428,8 +449,9 @@ void sensce(){
 			tot+=adc_read(0);
 			_delay_ms(25);
 		}
-		senRGB[i]=255*tot/((calibRGB[i+3]-calibRGB[i])*50);
-		regSen[i]=tot/50;
+		tot=tot/50;
+		senRGB[i]=255*(calibRGB[i+3]-tot)/(calibRGB[i+3]-calibRGB[i]);
+		regSen[i]=tot;
 		char num_char[7];
 		itoa(senRGB[i], num_char, 10);
 		LCD_GoToXY(3,0);
@@ -438,10 +460,11 @@ void sensce(){
 		control_bus&=~(run);
 	
 		
-		RGBSENCEE_LIGHT();
+		
 		run=run<<1;
 	}
-	_delay_ms(2000);
+	RGBSENCEE_LIGHT();
+	_delay_ms(4000);
 	RGBUPDATE_off();
 }
 void RGB_process(void){
@@ -476,7 +499,9 @@ void RGB_process(void){
 int main(void)
 {
 	//INITIALIZE LCD 
-	LCD_Init();
+	int t[3]={38,257,206};
+	
+	LCD_Init();	
 	LCD_GoToXY(1,5);LCD_DisplayString("RGB Colour");
 	LCD_GoToXY(2,7);LCD_DisplayString("Sensor");
 	_delay_ms(1000);
@@ -583,4 +608,5 @@ int main(void)
 		
     }
 }
+
 
